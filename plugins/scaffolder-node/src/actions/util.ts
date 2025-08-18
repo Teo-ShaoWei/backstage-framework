@@ -18,10 +18,6 @@ import { InputError } from '@backstage/errors';
 import { isChildPath } from '@backstage/backend-plugin-api';
 import { join as joinPath, normalize as normalizePath } from 'node:path';
 import { ScmIntegrationRegistry } from '@backstage/integration';
-import { TemplateActionOptions } from './createTemplateAction';
-import zodToJsonSchema from 'zod-to-json-schema';
-import { z } from 'zod/v3';
-import { Schema } from 'jsonschema';
 import { trim } from 'lodash';
 
 /**
@@ -130,65 +126,6 @@ function checkRequiredParams(repoUrl: URL, ...params: string[]) {
     }
   }
 }
-
-const isKeyValueZodCallback = (
-  schema: unknown,
-): schema is { [key in string]: (zImpl: typeof z) => z.ZodType } => {
-  return (
-    typeof schema === 'object' &&
-    !!schema &&
-    Object.values(schema).every(v => typeof v === 'function')
-  );
-};
-
-const isZodFunctionDefinition = (
-  schema: unknown,
-): schema is (zImpl: typeof z) => z.ZodType => {
-  return typeof schema === 'function';
-};
-
-export const parseSchemas = (
-  action: TemplateActionOptions<any, any, any>,
-): { inputSchema?: Schema; outputSchema?: Schema } => {
-  if (!action.schema) {
-    return { inputSchema: undefined, outputSchema: undefined };
-  }
-
-  if (isKeyValueZodCallback(action.schema.input)) {
-    const input = z.object(
-      Object.fromEntries(
-        Object.entries(action.schema.input).map(([k, v]) => [k, v(z)]),
-      ),
-    );
-
-    return {
-      inputSchema: zodToJsonSchema(input) as Schema,
-      outputSchema: isKeyValueZodCallback(action.schema.output)
-        ? (zodToJsonSchema(
-            z.object(
-              Object.fromEntries(
-                Object.entries(action.schema.output).map(([k, v]) => [k, v(z)]),
-              ),
-            ),
-          ) as Schema)
-        : undefined,
-    };
-  }
-
-  if (isZodFunctionDefinition(action.schema.input)) {
-    return {
-      inputSchema: zodToJsonSchema(action.schema.input(z)) as Schema,
-      outputSchema: isZodFunctionDefinition(action.schema.output)
-        ? (zodToJsonSchema(action.schema.output(z)) as Schema)
-        : undefined,
-    };
-  }
-
-  return {
-    inputSchema: undefined,
-    outputSchema: undefined,
-  };
-};
 
 /**
  * Filter function to exclude the .git directory and its contents
